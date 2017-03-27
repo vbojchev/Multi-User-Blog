@@ -3,6 +3,7 @@ import re
 import random
 import hashlib
 import hmac
+import time
 from string import letters
 
 import webapp2
@@ -114,6 +115,10 @@ class User(db.Model):
         if u and valid_pw(name, pw, u.pw_hash):
             return u
 
+#class Like(db.Model):
+#    like_count = db.IntegerProperty(default=0)
+#    post_id = db.IntegerProperty(required=True) #ReferenceProperty
+#    liked_by = db.ListProperty(int) # [1,2,3,4,5] # [Key(),Key()]
 
 ##### blog stuff
 
@@ -124,10 +129,9 @@ class Post(db.Model):
     subject = db.StringProperty(required = True)
     content = db.TextProperty(required = True)
     created = db.DateTimeProperty(auto_now_add = True)
-    likes = db.IntegerProperty( default=0)
-    dislikes = db.IntegerProperty(default=0)
-    #author = db.StringProperty(required = True)
+    like_count = db.IntegerProperty( default=0)
     author = db.ReferenceProperty(User)
+    liked_by = db.ListProperty(int)
     last_modified = db.DateTimeProperty(auto_now = True)
 
     def render(self):
@@ -148,12 +152,37 @@ class PostPage(BlogHandler):
             self.error(404)
             return
 
-        self.render("permalink.html", post = post)
+        self.render("permalink.html", post = post, user=self.user)
+
+class LikeHandler(BlogHandler):
+    def get(self, post_id):
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
+        if not post:
+            self.error(404)
+            return
+        else:
+            post.like_count=post.like_count+1
+            self.render("permalink.html", post = post)
+
+class DeleteHandler(BlogHandler):
+    def get(self, post_id):
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
+        if not post:
+            self.error(404)
+            return
+        else:
+            post.delete()
+            time.sleep(0.1)
+            self.redirect('/blog')
 
 class NewPost(BlogHandler):
     def get(self):
         if self.user:
-            self.render("newpost.html")
+            self.render("newpost.html", form_name="New Post")
         else:
             self.redirect("/login")
 
@@ -163,15 +192,47 @@ class NewPost(BlogHandler):
 
         subject = self.request.get('subject')
         content = self.request.get('content')
+        author = self.user.key()
 
         if subject and content:
-            p = Post(parent = blog_key(), subject = subject, content = content)
+            p = Post(parent = blog_key(),  subject = subject, content = content, author=author)
             p.put()
             self.redirect('/blog/%s' % str(p.key().id()))
         else:
             error = "subject and content, please!"
-            self.render("newpost.html", subject=subject, content=content, error=error)
+            self.render("newpost.html", form_name="Create Post", subject=subject, content=content, error=error)
 
+class EditPost(BlogHandler):
+    def get(self, post_id):
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+        if self.user:
+            self.render("newpost.html", form_name="Edit Post", subject=post.subject, content=post.content)
+        else:
+            self.redirect("/login")
+
+    def post(self, post_id):
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
+        if not post:
+            return self.error(404)
+            
+        if not self.user:
+            return self.redirect('/blog')
+
+        subject = self.request.get('subject')
+        content = self.request.get('content')
+
+        if subject and content:
+            post.subject = subject
+            post.content = content
+            post.put()
+            time.sleep(0.1)
+            self.redirect('/blog/%s' % str(post.key().id()))
+        else:
+            error = "subject and content, please!"
+            self.render("newpost.html", form_name="Edit Post", subject=subject, content=content, error=error)
 
 
 USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
@@ -270,6 +331,9 @@ class Unit3Welcome(BlogHandler):
 app = webapp2.WSGIApplication([('/', Login),
                                ('/blog/?', BlogFront),
                                ('/blog/([0-9]+)', PostPage),
+                               ('/blog/like/([0-9]+)', LikeHandler),
+                               ('/blog/delete/([0-9]+)', DeleteHandler),
+                               ('/blog/edit/([0-9]+)', EditPost),
                                ('/blog/newpost', NewPost),
                                ('/register', Register),
                                ('/login', Login),

@@ -2,4 +2,16 @@
 
 {% block content %}
   {{post.render() | safe}}
+
+  <div class="action-area">
+  <ul>
+  	<li><span>{{post.like_count}}</span> Likes</li>
+    {% if post.author.key() != user.key() %}
+    	<li><a class="login-link" href="/blog/like/{{post.key().id()}}">Like</a></li>
+    {% else %}
+    	<li><a class="login-link" href="/blog/edit/{{post.key().id()}}">Edit</a></li>
+    	<li><a class="login-link" href="/blog/delete/{{post.key().id()}}">Delete</a></li>
+    {% endif %}
+  </ul>
+  </div>
 {% endblock %}
