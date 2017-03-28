@@ -120,11 +120,6 @@ class User(db.Model):
 #    post_id = db.IntegerProperty(required=True) #ReferenceProperty
 #    liked_by = db.ListProperty(int) # [1,2,3,4,5] # [Key(),Key()]
 
-##### blog stuff
-
-def blog_key(name = 'default'):
-    return db.Key.from_path('blogs', name)
-
 class Post(db.Model):
     subject = db.StringProperty(required = True)
     content = db.TextProperty(required = True)
@@ -138,6 +133,18 @@ class Post(db.Model):
         self._render_text = self.content.replace('\n', '<br>')
         return render_str("post.html", p = self)
 
+class Comment(db.Model):
+    post_id = db.ReferenceProperty(Post)
+    comment_text = db.StringProperty(required=True)
+    commented_by = db.ReferenceProperty(User) # [1,2,3,4,5] # [Key(),Key()]
+    created = db.DateTimeProperty(auto_now_add = True)
+
+##### blog stuff
+
+def blog_key(name = 'default'):
+    return db.Key.from_path('blogs', name)
+
+
 class BlogFront(BlogHandler):
     def get(self):
         posts = greetings = Post.all().order('-created')
@@ -147,12 +154,89 @@ class PostPage(BlogHandler):
     def get(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
+        # comments = db.GqlQuery("select * from Comment where post_id=%s" %str(post.key().id()))
+        comments = db.GqlQuery("select * from Comment where post_id=%s" %str(post_id))
+
 
         if not post:
             self.error(404)
             return
 
-        self.render("permalink.html", post = post, user=self.user)
+        self.render("permalink.html", post = post, user=self.user, comments=comments)
+
+    def post(self, post_id):
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
+        if not self.user:
+            error = "Only logged users can write comments"
+            self.render("permalink.html", post = post, error=error)
+
+        post_id = post.key()
+        comment_text = self.request.get('comment')
+        commented_by = self.user.key()
+
+        if not comment_text:
+            self.error(404)
+            return
+        else:
+            c = Comment(parent = blog_key(), post_id=post_id, comment_text=comment_text, commented_by=commented_by)
+            c.put()
+            time.sleep(0.1)
+            self.render("permalink.html", post = post)
+
+class EditCommentHandler(BlogHandler):
+    def get(self, comment_id):
+        key = db.Key.from_path('Comment', int(comment_id), parent=blog_key())
+        c = db.get(key)
+        p = c.post_id
+        key2 = db.Key.from_path('Post', p, parent=blog_key())
+        post = db.get(key2)
+
+        if not c:
+            self.error(404)
+            return
+
+        self.render("permalink.html", post = post, user=self.user, comment=c)
+
+    def post(self, comment_id):
+        key = db.Key.from_path('Comment', int(comment_id), parent=blog_key())
+        c = db.get(key)
+        p = c.post_id
+        key2 = db.Key.from_path('Post', p, parent=blog_key())
+        post = db.get(key2)
+
+        if not self.user:
+            error = "You can only edit your comments"
+            self.render("permalink.html", post = post, error=error)
+            return
+
+        post_id = c.post_id
+        comment_text = self.request.get('comment')
+        commented_by = self.user.key()
+
+
+        if comment_text and commented_by:
+            c.comment_text = comment_text
+            c.put()
+            time.sleep(0.1)
+            self.redirect('/blog/%s' % str(post.key().id()))    
+
+class DeleteCommentHandler(BlogHandler):
+    def get(self, comment_id):
+        key = db.Key.from_path('Comment', int(comment_id), parent=blog_key())
+        c = db.get(key)
+        p = c.post_id
+        key2 = db.Key.from_path('Post', p, parent=blog_key())
+        post = db.get(key2)
+
+        if not c:
+            self.error(404)
+            return
+        else:
+            c.delete()
+            time.sleep(0.1)
+            self.render("permalink.html", post = post)
 
 class LikeHandler(BlogHandler):
     def get(self, post_id):
@@ -164,6 +248,8 @@ class LikeHandler(BlogHandler):
             return
         else:
             post.like_count=post.like_count+1
+            post.put()
+            time.sleep(0.1)
             self.render("permalink.html", post = post)
 
 class DeleteHandler(BlogHandler):
@@ -179,10 +265,32 @@ class DeleteHandler(BlogHandler):
             time.sleep(0.1)
             self.redirect('/blog')
 
+# class CommentHandler(BlogHandler):
+#     def post(self, post_id):
+#         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+#         post = db.get(key)
+
+#         if not self.user:
+#             error = "Only logged users can write comments"
+#             self.render("permalink.html", post = post, error=error)
+
+#         post_id = post_id
+#         comment_text = self.request.get('comment')
+#         commented_by = self.user.key()
+
+#         if not comment_text:
+#             self.error(404)
+#             return
+#         else:
+#             c = Comment(parent = blog_key(), post_id=post_id, comment_text=comment_text, commented_by=commented_by)
+#             c.put()
+#             time.sleep(0.1)
+#             self.render("permalink.html", post = post)
+
 class NewPost(BlogHandler):
     def get(self):
         if self.user:
-            self.render("newpost.html", form_name="New Post")
+            self.render("newpost.html", form_name="create a post")
         else:
             self.redirect("/login")
 
@@ -200,14 +308,14 @@ class NewPost(BlogHandler):
             self.redirect('/blog/%s' % str(p.key().id()))
         else:
             error = "subject and content, please!"
-            self.render("newpost.html", form_name="Create Post", subject=subject, content=content, error=error)
+            self.render("newpost.html", form_name="create a post", subject=subject, content=content, error=error)
 
 class EditPost(BlogHandler):
     def get(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
         if self.user:
-            self.render("newpost.html", form_name="Edit Post", subject=post.subject, content=post.content)
+            self.render("newpost.html", form_name="edit a post", subject=post.subject, content=post.content)
         else:
             self.redirect("/login")
 
@@ -232,7 +340,7 @@ class EditPost(BlogHandler):
             self.redirect('/blog/%s' % str(post.key().id()))
         else:
             error = "subject and content, please!"
-            self.render("newpost.html", form_name="Edit Post", subject=subject, content=content, error=error)
+            self.render("newpost.html", form_name="edit a post", subject=subject, content=content, error=error)
 
 
 USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
@@ -334,6 +442,8 @@ app = webapp2.WSGIApplication([('/', Login),
                                ('/blog/like/([0-9]+)', LikeHandler),
                                ('/blog/delete/([0-9]+)', DeleteHandler),
                                ('/blog/edit/([0-9]+)', EditPost),
+                               ('/blog/deleteComment/([0-9]+)', DeleteCommentHandler),
+                               ('/blog/editComment/([0-9]+)', EditCommentHandler),                               
                                ('/blog/newpost', NewPost),
                                ('/register', Register),
                                ('/login', Login),

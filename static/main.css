@@ -87,8 +87,17 @@ input[type=submit] {
 }
 
 .post-title {
-    font-size: 24px;
+    position: absolute;
+    bottom: 0px;
+    left: 0px;
+    font-size: 20px;
     font-weight: bold;
+    text-decoration: none;
+}
+
+.post-writer {
+    text-align: center;
+    color: #999;
 }
 
 .post-date {
@@ -103,3 +112,13 @@ input[type=submit] {
     margin-top: 5px;
 }
 
+.new-post {
+    font-size: x-large;
+    display: block;
+    padding-bottom: 15px;
+
+}
+
+#submit-button {
+    font-size: 18px;
+}
