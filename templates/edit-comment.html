@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Time to {{form_name}}</h2>
+    <div>Comment By: {{user.name}}</div>
+    <div>Post: {{post.subject}}</div>
+    <form method="post">
+      <label>
+        <div>Comment Text</div>
+        <input type="text" name="comment" value="{{comment.comment_text}}">
+      </label>
+
+      <div class="error">{{error}}</div>
+
+      <input type="submit">
+    </form>
+{% endblock %}

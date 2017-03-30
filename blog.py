@@ -155,12 +155,13 @@ class PostPage(BlogHandler):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
         # comments = db.GqlQuery("select * from Comment where post_id=%s" %str(post.key().id()))
-        comments = db.GqlQuery("select * from Comment where post_id=%s" %str(post_id))
-
-
+        
         if not post:
             self.error(404)
             return
+        #omments = db.GqlQuery("select * from Comment where post_id=%s" %str(post.key()))
+        comments = db.Query(Comment).filter('post_id =', post.key()).order('-created')
+        print "comments :", comments
 
         self.render("permalink.html", post = post, user=self.user, comments=comments)
 
@@ -172,7 +173,7 @@ class PostPage(BlogHandler):
             error = "Only logged users can write comments"
             self.render("permalink.html", post = post, error=error)
 
-        post_id = post.key()
+        post_key = post.key()
         comment_text = self.request.get('comment')
         commented_by = self.user.key()
 
@@ -180,54 +181,72 @@ class PostPage(BlogHandler):
             self.error(404)
             return
         else:
-            c = Comment(parent = blog_key(), post_id=post_id, comment_text=comment_text, commented_by=commented_by)
+            print post_id, comment_text, commented_by
+            c = Comment(post_id=post_key, comment_text=comment_text, commented_by=commented_by)
             c.put()
             time.sleep(0.1)
-            self.render("permalink.html", post = post)
+            self.redirect('/blog/%s'%str(post_id))
+            #self.render("permalink.html", post = post)
 
 class EditCommentHandler(BlogHandler):
     def get(self, comment_id):
-        key = db.Key.from_path('Comment', int(comment_id), parent=blog_key())
+        key = db.Key.from_path('Comment', int(comment_id))
         c = db.get(key)
-        p = c.post_id
-        key2 = db.Key.from_path('Post', p, parent=blog_key())
-        post = db.get(key2)
+        # p = c.post_id
+        # key2 = db.Key.from_path('Post', p, parent=blog_key())
+        # post = db.get(key2)
 
         if not c:
-            self.error(404)
-            return
-
-        self.render("permalink.html", post = post, user=self.user, comment=c)
-
-    def post(self, comment_id):
-        key = db.Key.from_path('Comment', int(comment_id), parent=blog_key())
-        c = db.get(key)
-        p = c.post_id
-        key2 = db.Key.from_path('Post', p, parent=blog_key())
+            return self.error(404) #self.redirect('/?error=1') #self.request.get('error') => show the error
+        key2 = db.Key.from_path('Post', int(c.post_id.key().id()), parent=blog_key())
         post = db.get(key2)
 
-        if not self.user:
+        if not post:
+            return self.error(404)
+        #print "self.user.username: ", self.user.username
+        self.render("edit-comment.html", 
+                form_name= "Edit Comment",
+                post = post, 
+                user=self.user,
+                comment=c)
+
+    def post(self, comment_id):
+        key = db.Key.from_path('Comment', int(comment_id))
+        c = db.get(key)
+        if not c:
+            return self.error(404) #self.redirect('/?error=1') #self.request.get('error') => show the error
+        key2 = db.Key.from_path('Post', int(c.post_id.key().id()), parent=blog_key())
+        post = db.get(key2)
+
+        if not post:
+            return self.error(404)
+
+        if not self.user and c.commented_by == self.user.key():
             error = "You can only edit your comments"
-            self.render("permalink.html", post = post, error=error)
+            self.render("edit-comment.html", post = post, user=self.user, comment=c, error=error)
             return
 
-        post_id = c.post_id
+        #post_id = c.post_id
+        comment_text=" "
         comment_text = self.request.get('comment')
-        commented_by = self.user.key()
+        #commented_by = self.user.key()
 
 
-        if comment_text and commented_by:
+        if comment_text !="":
             c.comment_text = comment_text
             c.put()
             time.sleep(0.1)
-            self.redirect('/blog/%s' % str(post.key().id()))    
+        else:
+            error ="empty comments are not allowed"
+            return
+        
+        self.redirect('/blog/%s' % str(post.key().id()))    
 
 class DeleteCommentHandler(BlogHandler):
     def get(self, comment_id):
-        key = db.Key.from_path('Comment', int(comment_id), parent=blog_key())
+        key = db.Key.from_path('Comment', int(comment_id))
         c = db.get(key)
-        p = c.post_id
-        key2 = db.Key.from_path('Post', p, parent=blog_key())
+        key2 = db.Key.from_path('Post', int(c.post_id.key().id()), parent=blog_key())
         post = db.get(key2)
 
         if not c:
@@ -236,18 +255,25 @@ class DeleteCommentHandler(BlogHandler):
         else:
             c.delete()
             time.sleep(0.1)
-            self.render("permalink.html", post = post)
+        self.redirect('/blog/%s'%str(c.post_id.key().id()))
 
 class LikeHandler(BlogHandler):
     def get(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
 
+        for l in post.liked_by:
+            if l== self.user.key():
+                error="You can like a post only once"
+                self.render("permalink.html", post = post, error=error)
+                return
+
         if not post:
             self.error(404)
             return
         else:
             post.like_count=post.like_count+1
+            post.liked_by.append(self.user.key())
             post.put()
             time.sleep(0.1)
             self.render("permalink.html", post = post)
@@ -265,27 +291,6 @@ class DeleteHandler(BlogHandler):
             time.sleep(0.1)
             self.redirect('/blog')
 
-# class CommentHandler(BlogHandler):
-#     def post(self, post_id):
-#         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
-#         post = db.get(key)
-
-#         if not self.user:
-#             error = "Only logged users can write comments"
-#             self.render("permalink.html", post = post, error=error)
-
-#         post_id = post_id
-#         comment_text = self.request.get('comment')
-#         commented_by = self.user.key()
-
-#         if not comment_text:
-#             self.error(404)
-#             return
-#         else:
-#             c = Comment(parent = blog_key(), post_id=post_id, comment_text=comment_text, commented_by=commented_by)
-#             c.put()
-#             time.sleep(0.1)
-#             self.render("permalink.html", post = post)
 
 class NewPost(BlogHandler):
     def get(self):
