@@ -152,6 +152,11 @@ class BlogFront(BlogHandler):
 
 class PostPage(BlogHandler):
     def get(self, post_id):
+
+        if not self.user:
+            self.redirect("/login")
+            return
+            
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
         # comments = db.GqlQuery("select * from Comment where post_id=%s" %str(post.key().id()))
@@ -263,7 +268,7 @@ class LikeHandler(BlogHandler):
         post = db.get(key)
 
         for l in post.liked_by:
-            if l== self.user.key():
+            if l== self.user.key().id():
                 error="You can like a post only once"
                 self.render("permalink.html", post = post, error=error)
                 return
@@ -273,7 +278,8 @@ class LikeHandler(BlogHandler):
             return
         else:
             post.like_count=post.like_count+1
-            post.liked_by.append(self.user.key())
+            post.liked_by.append(self.user.key().id())
+            print "Liked by %d" %(self.user.key().id())
             post.put()
             time.sleep(0.1)
             self.render("permalink.html", post = post)
