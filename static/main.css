@@ -67,6 +67,10 @@ input[type=submit] {
   font-size: 24px;
 }
 
+button {
+    font-size: 24px;
+}
+
 .main-title {
     display: block;
     color: #222;
@@ -75,6 +79,10 @@ input[type=submit] {
     text-align: center;
     margin-bottom: 30px;
     text-decoration: none;
+}
+
+.comment-label {
+    margin-bottom: 8px;
 }
 
 .post + .post {
@@ -119,6 +127,19 @@ input[type=submit] {
 
 }
 
+#cancel-button {
+    font-size: 24px;
+}
+
 #submit-button {
     font-size: 18px;
+}
+
+a.button {
+    -webkit-appearance: button;
+    -moz-appearance: button;
+    appearance: button;
+
+    text-decoration: none;
+    color: initial;
 }

@@ -15,20 +15,17 @@
   </ul>
   </div>
 
-  	<form method="post">
-      <label>
-        <div>Comment: </div>
-        <input type="text" name="comment">
-      </label>
-      
-      <div class="error">{{error}}</div>
-
-      <input type="submit" id="submit-button" >
+  <form method="post">
+    <label>
+      <div><h4 class="comment-label">Write a comment: </h4></div>
+      <input type="text" name="comment">
+    </label>      
+    <div class="error">{{error}}</div>
+    <input type="submit" id="submit-button" >
 	</form>
 
 	<div class="comments">
-	<hr>
-	<div>List of all comments:</div>
+	<div><h3>List of all comments:</h3></div>
 	{% for c in comments %}
 		<div>{{c.comment_text}}</div>>
 		{% if c.commented_by.key() == user.key() %}
@@ -39,8 +36,6 @@
     	<div></div>
     	<br>
 	{% endfor %}
-
-
 	</div>
 
 {% endblock %}
