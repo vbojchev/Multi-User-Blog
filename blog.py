@@ -354,7 +354,7 @@ class EditCommentHandler(BlogHandler):
         if not post:
             return self.error(404)
 
-        if not self.user and c.commented_by == self.user.key():
+        if not self.user and c.commented_by.key() == self.user.key():
             error = "You can only edit your comments"
             return self.render("edit-comment.html", post = post, 
                                 user=self.user, comment=c, error=error)
@@ -386,7 +386,7 @@ class DeleteCommentHandler(BlogHandler):
         if not c:
             self.error(404)
             return
-        elif c.commented_by==self.user.key():
+        elif c.commented_by.key()==self.user.key():
             error="You can only delete the posts that you wrote"
             return self.render("permalink.html", post=post, error=error)
         else:
